@@ -60,7 +60,42 @@ class FindETAIntentHandler(AbstractRequestHandler):
                         .ask(res)
                         .response
                 )
-                
+
+        etas = requests.get('https://shuttles.rpi.edu/eta').json()
+        
+        times = []
+        arriving = False
+        
+        # Add all ETAs for the stop into a list
+        for index,eta in etas.items():
+            stop_etas = eta['stop_etas']
+            for arrival in stop_etas:
+                if arrival['stop_id'] in matching:
+                    times.append(arrival['eta'])
+                    arriving = arriving or arrival['arriving']
+        
+        # No ETAs
+        if len(times) == 0:
+            message = "There are no shuttles arriving at {} in the near future".format(stop)
+        # Shuttle is arriving now
+        elif arriving:
+            message = "A shuttle is arriving at {} right now".format(stop)
+        else:
+            time_diffs = []
+            now = datetime.now(pytz.timezone('US/Eastern'))
+            # Turn all time strings into datetime objects and append the time difference
+            for time in times:
+                t = datetime.strptime(time,'%Y-%m-%dT%H:%M:%S.%f%z')
+                time_diffs.append(t-now)
+            final = min(time_diffs)
+            minutes = final.seconds // 60
+            # Somethings gone horribly wrong
+            if final.total_seconds() < 0:
+                message = "A shuttle is arriving in negative {} seconds... hmm, that doesn't seem right.".format(minutes)
+            # Output the ETA
+            else:
+                message = "A shuttle will arrive at {} in {} minutes".format(stop,minutes)
+        
         return (
             handler_input.response_builder
                 .speak(message)
