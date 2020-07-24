@@ -44,8 +44,23 @@ class FindETAIntentHandler(AbstractRequestHandler):
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
         
-        message = "Hello world!"
+        stop = handler_input.request_envelope.request.intent.slots["stop"].value
+        
+        all_stops = requests.get('https://shuttles.rpi.edu/stops').json()
 
+        # Extract the IDs for all stops which match the provided stop
+        names_ids = [(stop['name'],stop['id']) for stop in all_stops]
+        matching = [n[1] for n in names_ids if stop in n[0].lower()]
+        
+        if len(matching) == 0:
+            res = "Stop {} is not a valid stop. Please try again.".format(stop)
+            return (
+                    handler_input.response_builder
+                        .speak(res)
+                        .ask(res)
+                        .response
+                )
+                
         return (
             handler_input.response_builder
                 .speak(message)
