@@ -25,7 +25,7 @@ class LaunchRequestHandler(AbstractRequestHandler):
 
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
-        speak_output = "Welcome, you can ask when the shuttle will arrive at any stop."
+        speak_output = "Welcome, you can ask when the shuttle will arrive at any stop or to list all stops"
 
         return (
             handler_input.response_builder
@@ -87,14 +87,35 @@ class FindETAIntentHandler(AbstractRequestHandler):
             for time in times:
                 t = datetime.strptime(time,'%Y-%m-%dT%H:%M:%S.%f%z')
                 time_diffs.append(t-now)
+            # Find the smallest time, and turn it into minutes (truncate seconds)
             final = min(time_diffs)
             minutes = final.seconds // 60
             # Somethings gone horribly wrong
             if final.total_seconds() < 0:
-                message = "A shuttle is arriving in negative {} seconds... hmm, that doesn't seem right.".format(minutes)
+                message = "A shuttle is arriving in negative {} minutes... hmm, that doesn't seem right.".format(minutes)
             # Output the ETA
             else:
                 message = "A shuttle will arrive at {} in {} minutes".format(stop,minutes)
+        
+        return (
+            handler_input.response_builder
+                .speak(message)
+                # .ask("add a reprompt if you want to keep the session open for the user to respond")
+                .response
+        )
+
+class ListStopsHandler(AbstractRequestHandler):
+    """Handler for Listing all stops"""
+    def can_handle(self, handler_input):
+        # type: (HandlerInput) -> bool
+        return ask_utils.is_intent_name("ListStops")(handler_input)
+
+    def handle(self, handler_input):
+        # type: (HandlerInput) -> Response
+        all_stops = requests.get('https://shuttles.rpi.edu/stops').json()
+        names = set([stop['name'] for stop in all_stops])
+
+        message = "Here is a list of all stops: {}".format(", ".join(names))
         
         return (
             handler_input.response_builder
@@ -208,6 +229,7 @@ sb = SkillBuilder()
 
 sb.add_request_handler(LaunchRequestHandler())
 sb.add_request_handler(FindETAIntentHandler())
+sb.add_request_handler(ListStopsHandler())
 sb.add_request_handler(HelpIntentHandler())
 sb.add_request_handler(CancelOrStopIntentHandler())
 sb.add_request_handler(SessionEndedRequestHandler())
